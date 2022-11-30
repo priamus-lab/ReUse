@@ -13,7 +13,9 @@ git clone https://github.com/priamus-lab/ReUse.git
 the following line allows to create a conda environment with all dependencies installed (if you don't have miniconda you can download it from this 
 page https://docs.conda.io/en/latest/miniconda.html; to install instead tensorflow compatible with the use of a GPU see the link https://www.tensorflow.org/install/pip)
 
+```
 conda env create -n ENVNAME --file environment.yml
+```
 
 ### set variables in the main.py
 from line 3 to 8 in main.py
