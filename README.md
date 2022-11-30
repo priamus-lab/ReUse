@@ -42,6 +42,13 @@ In this new folder of the study area create a folder named "models_dl". Here you
 #### "Results" folder
 From the root create a folder "Results". Inside this folder create another folder with the name of the study area (the same name as you assigned to the variable 'area' above).
 Here you will find the results in term of different metrics after training using 8 fold cross validation.
+### Run the project
+run  main.py
+
+```
+python main.py
+```
+
 
 
 
