@@ -18,17 +18,15 @@ conda env create -n ENVNAME --file environment.yml
 ### set variables in the main.py
 from line 3 to 8 in main.py
 
+```
 area = ""                                                     #Set the name of the study area, i.e. "europa"
-
 path_agb = "Data/{}/agb.tif".format(area)                     #leave like this
-
 path_sentinel = ""                                            #Set the path for the Sentinel Data, i.e. "Data/{}/sentinel/2018/4/3/".format(area)
-
 compute_haralick = True                                       #If False you will not compute haralick features that are important in the machine learning implementations
-
 strategy = "DL"                                               # Set "ML" or "DL"
-
 model = "UNet"                                                # Set "Paper1" or "Paper2" or "UNet". Note that "ML" goes with "Paper1" or "Paper2" and "DL" only with "UNet"
+```
+
 ### add folders to the project
 #### "Data" folder
 From the root create a folder 'Data'. In the folder "Data" create a folder with the name of the study area (the same name as you assigned to the variable 'area' above). 
