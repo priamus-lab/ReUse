@@ -9,13 +9,13 @@ In addition to UNet, two classical machine learning approaches with related feat
 ## Getting started
 git clone https://github.com/priamus-lab/ReUse.git
 ## How to Install and Run the Project
-### a) install dependencies with conda
+### install dependencies with conda
 the following line allows to create a conda environment with all dependencies installed (if you don't have miniconda you can download it from this 
 page https://docs.conda.io/en/latest/miniconda.html; to install instead tensorflow compatible with the use of a GPU see the link https://www.tensorflow.org/install/pip)
 
 conda env create -n ENVNAME --file environment.yml
 
-### b) set variables in the main.py
+### set variables in the main.py
 from line 3 to 8 in main.py
 
 area = ""                                                     #Set the name of the study area, i.e. "europa"
@@ -29,19 +29,19 @@ compute_haralick = True                                       #If False you will
 strategy = "DL"                                               # Set "ML" or "DL"
 
 model = "UNet"                                                # Set "Paper1" or "Paper2" or "UNet". Note that "ML" goes with "Paper1" or "Paper2" and "DL" only with "UNet"
-### c) add folders to the project
-#### - "Data" folder
+### add folders to the project
+#### "Data" folder
 From the root create a folder 'Data'. In the folder "Data" create a folder with the name of the study area (the same name as you assigned to the variable 'area' above). 
 In this new folder of the study area, load the AGB raster and call it "agb" and create the following folders: "haralick", "haralick-pca", "sentinel".
 In the "sentinel" folder, upload the sentinel-2 data using the following path: "sentinel/year/month/day/".
 Note that in "haralick" folder you will find the texture features extracted for "Paper1" and in "haralick-pca" folder you will find the texture features extracted for "Paper2"
 after that you launched the code.
-#### - "models" folder
+#### "models" folder
 From the root create a folder "models". Inside this folder create another folder with the name of the study area (the same name as you assigned to the variable 'area' above).
 In this new folder of the study area create a folder named "models_dl". Here you will find the saved UNet models for different models trained using 8 fold cross-validation.
-#### - "Results" folder
+#### "Results" folder
 From the root create a folder "Results". Inside this folder create another folder with the name of the study area (the same name as you assigned to the variable 'area' above).
 Here you will find the results in term of different metrics after training using 8 fold cross validation.
-### d) Now launch main.py
+
 
 
