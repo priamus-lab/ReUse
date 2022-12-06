@@ -40,7 +40,7 @@ From the root, create a folder "models". Inside this folder, create another fold
 In this new folder of the study area, create a folder named "models_dl". Here you will find the saved UNet models for different models trained using eight-fold cross-validation.
 #### "Results" folder
 From the root create a folder "Results". Inside this folder, create another folder with the name of the study area (the same name you assigned to the variable 'area' above).
-Here you will find the results in different metrics after training using 8-fold cross-validation.
+Here you will find the results in different metrics after training using eight-fold cross-validation.
 ### Run the project
 run  main.py
 
