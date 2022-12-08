@@ -48,6 +48,9 @@ run  main.py
 python main.py
 ```
 
+## How to cite
+
+Pascarella, A.E.; Giacco, G.; Rigiroli, M.; Marrone, S.; Sansone, C. ReUse: REgressive Unet for Carbon Storage and above Ground Biomass Estimation. Preprints 2022, 2022120158 (doi: 10.20944/preprints202212.0158.v1).
 
 
 
