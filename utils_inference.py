@@ -2,7 +2,7 @@ import numpy as np
 import rasterio
 
 def predict(x, model, strategy, crop_size):
-    #chip_size = 16
+    
 
     batch, height, width, bands = x.shape  
     print(x.shape)
@@ -15,8 +15,6 @@ def predict(x, model, strategy, crop_size):
     prediction_list = []
     
     for i in range(len(boxes)):
-        # Box to compute inference on
-
         prediction_list.append(np.squeeze(model.predict(boxes[i]),0)) 
 
     for i in range(len(list_row_idx)):
@@ -35,12 +33,11 @@ def save_prediction_to_raster(labels, raster_src_uri, raster_dst_uri):
     :param raster_dst_uri: raster where save prediction
     :return:
     """
-    # leggo i metadata da copiare
+  
     with rasterio.open(raster_src_uri) as raster_src:
         profile = raster_src.profile
 
-    batch, height, width = labels.shape # le bande sulla terza dim., in questo caso e` 1 sola
-    #num_bands = 1
+    batch, height, width = labels.shape 
     # And then change the band count to 1, set the
     # dtype to uint8, and specify LZW compression.
     profile.update(
@@ -51,8 +48,6 @@ def save_prediction_to_raster(labels, raster_src_uri, raster_dst_uri):
         compress='lzw')
 
     with rasterio.open(raster_dst_uri, 'w', **profile) as raster_dst:
-        #for i in range(0, num_bands):
-            #raster_dst.write(labels[i, :, :], i + 1)
           raster_dst.write(labels)
 
 
