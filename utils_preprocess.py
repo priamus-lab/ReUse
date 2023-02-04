@@ -3,10 +3,11 @@ import mahotas
 import numpy as np
 import rioxarray
 from sklearn.decomposition import PCA
+from sklearn.metrics import r2_score
 import pywt
 import cv2
+import joblib
 from utils_models import get_dl_model, get_ml_model
-
 
 class Dataset():
     def __init__(self, path_agb, path_sentinel):
@@ -26,9 +27,9 @@ class Dataset():
     def load_data(self, is_sentinel):
         if is_sentinel:
             sentinel_list = []
-            anno = self.path_sentinel.split("/")[-4]   #self.path_sentinel[-9:-5]
-            mese = self.path_sentinel.split("/")[-3]   #self.path_sentinel[-4:-3]
-            giorno = self.path_sentinel.split("/")[-2] #self.path_sentinel[-2:-1]
+            anno = self.path_sentinel.split("/")[-4]   
+            mese = self.path_sentinel.split("/")[-3]   
+            giorno = self.path_sentinel.split("/")[-2] 
             if len(giorno)<2:
                 giorno = "0" + giorno
             for band in range(1,12):
@@ -43,10 +44,13 @@ class Dataset():
             agb = rioxarray.open_rasterio(self.path_agb)
             self.agb = agb
 
-    def reprojection(self):
+    def reprojection(self, on_agb = True, idx_band = 3):
         sentinel_reprojected_list = []
         for idx in range(len(self.sentinel)):
-            sentinel_reprojected = self.sentinel[idx].rio.reproject_match(self.agb)
+            if on_agb:
+                sentinel_reprojected = self.sentinel[idx].rio.reproject_match(self.agb)
+            else:
+                sentinel_reprojected = self.sentinel[idx].rio.reproject_match(self.sentinel[idx_band])
             sentinel_reprojected_list.append(sentinel_reprojected)
         self.sentinel = sentinel_reprojected_list
 
@@ -66,6 +70,7 @@ class Dataset():
     
     def compute_pca(self, n_components = 1):
         tabular = self.sentinel.reshape((-1,self.sentinel.shape[3]))
+        #tabular = self.normalized_sentinel.reshape((-1,self.normalized_sentinel.shape[3]))
         pca = PCA(n_components=n_components)
         principal_component = pca.fit_transform(tabular).astype(int)
         self.pca = principal_component.reshape((self.sentinel.shape[0],self.sentinel.shape[1],
@@ -94,63 +99,63 @@ class Dataset():
     
     def get_spectral_index(self, model):
         if model == "Paper1":
-            ng = self.normalized_sentinel[0,:,:,1]/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2])
-            ndii = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,8])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,8])
-            gndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,1])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1])
-            ndwi = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,6]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,6])
-            cig = (self.normalized_sentinel[0,:,:,6] / self.normalized_sentinel[0,:,:,1]) - 1.0
-            msi = self.normalized_sentinel[0,:,:,8]/self.normalized_sentinel[0,:,:,6]
-            vari_g = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2])
-            cire = (self.normalized_sentinel[0,:,:,6] / self.normalized_sentinel[0,:,:,3]) - 1.0
+            ng = self.normalized_sentinel[0,:,:,1]/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2]+0.1)
+            ndii = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,8])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,8]+0.1)
+            gndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,1])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1]+0.1)
+            ndwi = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,6]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,6]+0.1)
+            cig = (self.normalized_sentinel[0,:,:,6] / (self.normalized_sentinel[0,:,:,1]+0.1)) - 1.0
+            msi = self.normalized_sentinel[0,:,:,8]/(self.normalized_sentinel[0,:,:,6]+0.1)
+            vari_g = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2]+0.1)
+            cire = (self.normalized_sentinel[0,:,:,6] / (self.normalized_sentinel[0,:,:,3]+0.1)) - 1.0
             dvi = self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]
             evi = 2.5 * (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,6] + 6 * self.normalized_sentinel[0,:,:,2] - 7.5 * self.normalized_sentinel[0,:,:,0] + 1.0)   
             evire1 = 2.5*(self.normalized_sentinel[0,:,:,3]-self.normalized_sentinel[0,:,:,2])/(1+self.normalized_sentinel[0,:,:,3]+6*self.normalized_sentinel[0,:,:,2]-7.5*self.normalized_sentinel[0,:,:,0])
             evire2 = 2.5*(self.normalized_sentinel[0,:,:,4]-self.normalized_sentinel[0,:,:,2])/(1+self.normalized_sentinel[0,:,:,4]+6*self.normalized_sentinel[0,:,:,2]-7.5*self.normalized_sentinel[0,:,:,0])
             evire3 = 2.5*(self.normalized_sentinel[0,:,:,5]-self.normalized_sentinel[0,:,:,2])/(1+self.normalized_sentinel[0,:,:,5]+6*self.normalized_sentinel[0,:,:,2]-7.5*self.normalized_sentinel[0,:,:,0])
             evinir2 = 2.5*(self.normalized_sentinel[0,:,:,7]-self.normalized_sentinel[0,:,:,2])/(1+self.normalized_sentinel[0,:,:,7]+6*self.normalized_sentinel[0,:,:,2]-7.5*self.normalized_sentinel[0,:,:,0])
-            gari = (self.normalized_sentinel[0,:,:,6] - (self.normalized_sentinel[0,:,:,1] - (self.normalized_sentinel[0,:,:,0] - self.normalized_sentinel[0,:,:,2]))) / (self.normalized_sentinel[0,:,:,6] - (self.normalized_sentinel[0,:,:,1] + (self.normalized_sentinel[0,:,:,0] - self.normalized_sentinel[0,:,:,2])))
+            gari = (self.normalized_sentinel[0,:,:,6] - (self.normalized_sentinel[0,:,:,1] - (self.normalized_sentinel[0,:,:,0] - self.normalized_sentinel[0,:,:,2]))) / (self.normalized_sentinel[0,:,:,6] - (self.normalized_sentinel[0,:,:,1] + (self.normalized_sentinel[0,:,:,0] - self.normalized_sentinel[0,:,:,2]))+0.1)
             gdvi = self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,1]
-            ireci = (self.normalized_sentinel[0,:,:,5] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,3] / self.normalized_sentinel[0,:,:,4])
-            mcari = ((self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2]) - 0.2 * (self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,1])) * (self.normalized_sentinel[0,:,:,3] / self.normalized_sentinel[0,:,:,2])
+            ireci = (self.normalized_sentinel[0,:,:,5] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,3] / (self.normalized_sentinel[0,:,:,4]+0.1)+0.1)
+            mcari = ((self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2]) - 0.2 * (self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,1])) * (self.normalized_sentinel[0,:,:,3] / (self.normalized_sentinel[0,:,:,2]+0.1))
             msavi = 0.5 * (2.0 * self.normalized_sentinel[0,:,:,6] + 1 - (((2 * self.normalized_sentinel[0,:,:,6] + 1) ** 2) - 8 * (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2])) ** 0.5)
-            msr = (self.normalized_sentinel[0,:,:,6] / self.normalized_sentinel[0,:,:,2] - 1) / ((self.normalized_sentinel[0,:,:,6] / self.normalized_sentinel[0,:,:,2] + 1) ** 0.5)
-            msrre1 = (self.normalized_sentinel[0,:,:,3] / self.normalized_sentinel[0,:,:,2] - 1) / ((self.normalized_sentinel[0,:,:,3] / self.normalized_sentinel[0,:,:,2] + 1) ** 0.5)
-            msrre2 = (self.normalized_sentinel[0,:,:,4] / self.normalized_sentinel[0,:,:,2] - 1) / ((self.normalized_sentinel[0,:,:,4] / self.normalized_sentinel[0,:,:,2] + 1) ** 0.5)
-            msrre3 = (self.normalized_sentinel[0,:,:,5] / self.normalized_sentinel[0,:,:,2] - 1) / ((self.normalized_sentinel[0,:,:,5] / self.normalized_sentinel[0,:,:,2] + 1) ** 0.5)
-            msrnir2 = (self.normalized_sentinel[0,:,:,7] / self.normalized_sentinel[0,:,:,2] - 1) / ((self.normalized_sentinel[0,:,:,7] / self.normalized_sentinel[0,:,:,2] + 1) ** 0.5)
-            ndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2])
-            ndvi705 = (self.normalized_sentinel[0,:,:,4] - self.normalized_sentinel[0,:,:,3]) / (self.normalized_sentinel[0,:,:,4] + self.normalized_sentinel[0,:,:,3])
-            nli = ((self.normalized_sentinel[0,:,:,6] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,6] ** 2) + self.normalized_sentinel[0,:,:,2])
-            nlire1 = ((self.normalized_sentinel[0,:,:,3] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,3] ** 2) + self.normalized_sentinel[0,:,:,2])    
-            nlire2 = ((self.normalized_sentinel[0,:,:,4] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,4] ** 2) + self.normalized_sentinel[0,:,:,2]) 
-            nlire3 = ((self.normalized_sentinel[0,:,:,5] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,5] ** 2) + self.normalized_sentinel[0,:,:,2])  
-            nlinir2 = ((self.normalized_sentinel[0,:,:,7] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,7] ** 2) + self.normalized_sentinel[0,:,:,2])
-            nnir = self.normalized_sentinel[0,:,:,5]/(self.normalized_sentinel[0,:,:,5] + self.normalized_sentinel[0,:,:,2] +self.normalized_sentinel[0,:,:,1])
-            normR = self.normalized_sentinel[0,:,:,2]/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2])
-            psri = (self.normalized_sentinel[0,:,:,2] - self.normalized_sentinel[0,:,:,0])/self.normalized_sentinel[0,:,:,4]
-            psrinir = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,0])/self.normalized_sentinel[0,:,:,4]
+            msr = (self.normalized_sentinel[0,:,:,6] / (self.normalized_sentinel[0,:,:,2]+0.1) - 1) / ((self.normalized_sentinel[0,:,:,6] / (self.normalized_sentinel[0,:,:,2]+0.1) + 1) ** 0.5)
+            msrre1 = (self.normalized_sentinel[0,:,:,3] / (self.normalized_sentinel[0,:,:,2]+0.1) - 1) / ((self.normalized_sentinel[0,:,:,3] / (self.normalized_sentinel[0,:,:,2]+0.1) + 1) ** 0.5)
+            msrre2 = (self.normalized_sentinel[0,:,:,4] / (self.normalized_sentinel[0,:,:,2]+0.1) - 1) / ((self.normalized_sentinel[0,:,:,4] / (self.normalized_sentinel[0,:,:,2]+0.1) + 1) ** 0.5)
+            msrre3 = (self.normalized_sentinel[0,:,:,5] / (self.normalized_sentinel[0,:,:,2]+0.1) - 1) / ((self.normalized_sentinel[0,:,:,5] / (self.normalized_sentinel[0,:,:,2]+0.1) + 1) ** 0.5)
+            msrnir2 = (self.normalized_sentinel[0,:,:,7] / (self.normalized_sentinel[0,:,:,2]+0.1) - 1) / ((self.normalized_sentinel[0,:,:,7] / (self.normalized_sentinel[0,:,:,2]+0.1) + 1) ** 0.5)
+            ndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2]+0.1)
+            ndvi705 = (self.normalized_sentinel[0,:,:,4] - self.normalized_sentinel[0,:,:,3]) / (self.normalized_sentinel[0,:,:,4] + self.normalized_sentinel[0,:,:,3]+0.1)
+            nli = ((self.normalized_sentinel[0,:,:,6] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,6] ** 2) + self.normalized_sentinel[0,:,:,2]+0.1)
+            nlire1 = ((self.normalized_sentinel[0,:,:,3] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,3] ** 2) + self.normalized_sentinel[0,:,:,2]+0.1)    
+            nlire2 = ((self.normalized_sentinel[0,:,:,4] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,4] ** 2) + self.normalized_sentinel[0,:,:,2]+0.1) 
+            nlire3 = ((self.normalized_sentinel[0,:,:,5] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,5] ** 2) + self.normalized_sentinel[0,:,:,2]+0.1)  
+            nlinir2 = ((self.normalized_sentinel[0,:,:,7] ** 2) - self.normalized_sentinel[0,:,:,2])/((self.normalized_sentinel[0,:,:,7] ** 2) + self.normalized_sentinel[0,:,:,2]+0.1)
+            nnir = self.normalized_sentinel[0,:,:,5]/(self.normalized_sentinel[0,:,:,5] + self.normalized_sentinel[0,:,:,2] +self.normalized_sentinel[0,:,:,1]+0.1)
+            normR = self.normalized_sentinel[0,:,:,2]/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,2]+0.1)
+            psri = (self.normalized_sentinel[0,:,:,2] - self.normalized_sentinel[0,:,:,0])/(self.normalized_sentinel[0,:,:,4]+0.1)
+            psrinir = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,0])/(self.normalized_sentinel[0,:,:,4]+0.1)
             pssr = self.normalized_sentinel[0,:,:,5] * self.normalized_sentinel[0,:,:,2]
-            rdvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / ((self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2]) ** 0.5)
+            rdvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / ((self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2]+0.1) ** 0.5)
             savi = (1.5) * (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2] + 0.5)
-            tsavi =  (self.normalized_sentinel[0,:,:,6] -   self.normalized_sentinel[0,:,:,2] ) / (  self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2] )
-            wdrvi = (0.01 * self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (0.01 * self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2])
-            wdrvirededge = (0.01 * self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]) / (0.01 * self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,3])
+            tsavi =  (self.normalized_sentinel[0,:,:,6] -   self.normalized_sentinel[0,:,:,2] ) / (  self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2] +0.1)
+            wdrvi = (0.01 * self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (0.01 * self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2]+0.1)
+            wdrvirededge = (0.01 * self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]) / (0.01 * self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,3]+0.1)
             self.spectral_indexes = np.expand_dims(np.stack([ng, ndii, gndvi, ndwi, cig, msi, vari_g, cire, dvi, evi, evire1, evire2, evire3, evinir2, 
                                     gari, gdvi, ireci, mcari, msavi, msr, msrre1, msrre2, msrre3, msrnir2, ndvi,
                                     ndvi705, nli, nlire1, nlire2, nlire3, nlinir2, nnir, normR, psri, psrinir, pssr,
                                     rdvi, savi, tsavi, wdrvi, wdrvirededge], axis = -1), axis = 0)
         elif model == "Paper2":
-            ndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2])
+            ndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2] +0.1)
             savi = (1.5) * (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,2] + 0.5)
             evi = 2.5 * (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,2]) / (self.normalized_sentinel[0,:,:,6] + 6 * self.normalized_sentinel[0,:,:,2] - 7.5 * self.normalized_sentinel[0,:,:,0] + 1.0)   
-            gndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,1])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1])
-            ndwi = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,6]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,6])
+            gndvi = (self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,1])/(self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,1] + 0.1)
+            ndwi = (self.normalized_sentinel[0,:,:,1] - self.normalized_sentinel[0,:,:,6]) / (self.normalized_sentinel[0,:,:,1] + self.normalized_sentinel[0,:,:,6]+0.1)
             wdvi = self.normalized_sentinel[0,:,:,6] - 0.5*self.normalized_sentinel[0,:,:,2]
-            sr = self.normalized_sentinel[0,:,:,6]/self.normalized_sentinel[0,:,:,2]
-            ndi45 = (self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,3] + self.normalized_sentinel[0,:,:,2])
-            mtci = (self.normalized_sentinel[0,:,:,4] - self.normalized_sentinel[0,:,:,3])/(self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2] + 0.1)
-            rendvi = self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]/self.normalized_sentinel[0,:,:,6] + self.normalized_sentinel[0,:,:,3]
-            reevi = 2.5*(self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]/self.normalized_sentinel[0,:,:,6] + 2.4*self.normalized_sentinel[0,:,:,3]+1)
+            sr = self.normalized_sentinel[0,:,:,6]/(self.normalized_sentinel[0,:,:,2] + 0.1)
+            ndi45 = (self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2])/(self.normalized_sentinel[0,:,:,3] + self.normalized_sentinel[0,:,:,2]+0.1)
+            mtci = (self.normalized_sentinel[0,:,:,4] - self.normalized_sentinel[0,:,:,3])/(self.normalized_sentinel[0,:,:,3] - self.normalized_sentinel[0,:,:,2] + 0.2)
+            rendvi = self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]/(self.normalized_sentinel[0,:,:,6]+0.1) + self.normalized_sentinel[0,:,:,3]
+            reevi = 2.5*(self.normalized_sentinel[0,:,:,6] - self.normalized_sentinel[0,:,:,3]/(self.normalized_sentinel[0,:,:,6]+0.1) + 2.4*self.normalized_sentinel[0,:,:,3]+1)
             self.spectral_indexes = np.expand_dims(np.stack([ndvi, savi, evi, gndvi, ndwi, wdvi, sr, ndi45, mtci, rendvi, reevi], axis = -1), axis = 0)
 
     def stack_tensors(self, attribute_list):
@@ -171,8 +176,10 @@ class Dataset():
         num_samples = len(self.patches) // k
         test_mae_dl = []
         test_rmse_dl = []
+        test_rsquared_dl = []
         test_mae_ml = []
         test_rmse_ml = []
+        test_rsquared_ml = []
         stopped_epochs = []
         num_trees = []
         for fold in range(k):
@@ -196,10 +203,12 @@ class Dataset():
                 validation = np.nan_to_num(validation_data, copy=True, nan=-1.0)
                 test = np.nan_to_num(test_data, copy=True, nan=-1.0)
                 model, callbacks = get_dl_model(training.shape[1], training.shape[2], training.shape[3], fold, area)
-                model.fit(training, training_agb, batch_size=8, epochs=500, callbacks=callbacks,         #epoche = 500
+                model.fit(training, training_agb, batch_size=8, epochs=500, callbacks=callbacks,         
                         validation_data=(validation, validation_agb))
                 model.load_weights('models/{}/models_dl/fold{}.h5'.format(area, fold))
                 mae, mse = model.evaluate(test, test_agb, verbose=1)
+                r_squared = r2_score(test_agb.reshape((-1)), model.predict(test).reshape((-1)))
+                test_rsquared_dl.append(r_squared)
                 test_mae_dl.append(mae)
                 test_rmse_dl.append(np.sqrt(mse))
                 stopped_epochs.append(callbacks[0].stopped_epoch)
@@ -221,46 +230,66 @@ class Dataset():
                 training = np.nan_to_num(training_data, copy=True, nan=-1.0).reshape((-1,self.patches.shape[3]))
                 validation = np.nan_to_num(validation_data, copy=True, nan=-1.0).reshape((-1,self.patches.shape[3]))
                 test = np.nan_to_num(test_data, copy=True, nan=-1.0).reshape((-1,self.patches.shape[3]))
-                model_1 = get_ml_model(n_estimators = 250)                                                        #n_estimators = 250
+                model_1 = get_ml_model(n_estimators = 250)                                                        
                 model_1.fit(training, training_agb.reshape((-1))) 
                 val_score_1 = np.mean(abs(model_1.predict(validation) - validation_agb.reshape((-1))),axis=0)
-                model_2 = get_ml_model(n_estimators = 500)                                                        #n_estimators = 500
+                model_2 = get_ml_model(n_estimators = 500)                                                        
                 model_2.fit(training, training_agb.reshape((-1))) 
                 val_score_2 = np.mean(abs(model_2.predict(validation) - validation_agb.reshape((-1))),axis=0)
                 if val_score_1<=val_score_2:
                     model = model_1
+                    #joblib.dump(model, 'models/{}/models_ml/{}-fold{}.joblib'.format(area, model_str, fold))
                     num_trees.append(250)
                     print("vince ml1 con 250 alberi")
                 else:
                     model = model_2
+                    #joblib.dump(model, 'models/{}/models_ml/{}-fold{}.joblib'.format(area, model_str, fold))
                     num_trees.append(500)
                     print("vince ml2 con 500 alberi")
                 mae = np.mean(abs(model.predict(test) - test_agb.reshape((-1))),axis=0)
                 rmse = np.sqrt(np.mean((model.predict(test) - test_agb.reshape((-1)))**2,axis=0))
+                r_squared = r2_score(test_agb.reshape((-1)), model.predict(test).reshape((-1)))
+                test_rsquared_ml.append(r_squared)
                 test_mae_ml.append(mae)
                 test_rmse_ml.append(rmse)
         if strategy == "DL":
-            overall_mae_dl = np.average(test_mae_dl)
-            overall_rmse_dl = np.average(test_rmse_dl)
+            overall_mae_dl, std_mae_dl= np.average(test_mae_dl),np.std(test_mae_dl)
+            overall_rmse_dl, std_rmse_dl= np.average(test_rmse_dl), np.std(test_rmse_dl)
+            overall_r_squared_dl, std_r_squared_dl = np.average(test_rsquared_dl), np.std(test_rsquared_dl)
             with open("Results/{}/dl-{}.txt".format(area, model_str), "w") as f:
                 f.write("Results for CV with U-Net:\n")
-                f.write("           MAE                 RMSE\n")
-                f.write('\n'.join("fold: " + str(mae) +"    "+str(rmse) for mae, rmse in zip(test_mae_dl,test_rmse_dl)))
+                f.write("           MAE                 RMSE                     R^2\n")
+                f.write('\n'.join("fold: " + str(mae) +"    "+str(rmse)+"    "+str(r2) for mae, rmse, r2 in zip(test_mae_dl,test_rmse_dl,test_rsquared_dl)))
                 f.write("\n")
-                f.write("Avg: {}      {}\n".format(str(overall_mae_dl),str(overall_rmse_dl)))
+                f.write("Avg: {}      {}      {}\n".format(str(overall_mae_dl),str(overall_rmse_dl),str(overall_r_squared_dl)))
+                f.write("Std: {}      {}      {}\n".format(str(std_mae_dl),str(std_rmse_dl),str(std_r_squared_dl)))
                 f.write("number of epochs: {}\n".format(stopped_epochs))
         elif strategy == "ML":
-            overall_mae_ml = np.average(test_mae_ml)
-            overall_rmse_ml = np.average(test_rmse_ml)
+            overall_mae_ml, std_mae_ml= np.average(test_mae_ml),np.std(test_mae_ml)
+            overall_rmse_ml, std_rmse_ml= np.average(test_rmse_ml), np.std(test_rmse_ml)
+            overall_r_squared_ml, std_r_squared_ml = np.average(test_rsquared_ml), np.std(test_rsquared_ml)
             with open("Results/{}/ml-{}.txt".format(area, model_str), "w") as f:
                 f.write("Results for CV with RandomForest:\n")
-                f.write("           MAE                 RMSE\n")
-                f.write('\n'.join("fold: " + str(mae) +"    "+str(rmse) for mae, rmse in zip(test_mae_ml,test_rmse_ml)))
+                f.write("           MAE                 RMSE                     R^2\n")
+                f.write('\n'.join("fold: " + str(mae) +"    "+str(rmse)+"    "+str(r2) for mae, rmse, r2 in zip(test_mae_ml,test_rmse_ml,test_rsquared_ml)))
                 f.write("\n")
-                f.write("Avg: {}      {}\n".format(str(overall_mae_ml),str(overall_rmse_ml)))
+                f.write("Avg: {}      {}      {}\n".format(str(overall_mae_ml),str(overall_rmse_ml),str(overall_r_squared_ml)))
+                f.write("Std: {}      {}      {}\n".format(str(std_mae_ml),str(std_rmse_ml),str(std_r_squared_ml)))
                 f.write("num. of trees: {}\n".format(num_trees))
+                
+    def training(self, area, strategy, model_str):
+        if strategy == "DL":
+            training = np.nan_to_num(self.patches, copy=True, nan=-1.0)
+            model, callbacks = get_dl_model(training.shape[1], training.shape[2], training.shape[3], 0, area)
+            model.fit(training, self.agb_patches, batch_size=8, epochs=500, callbacks=callbacks,         #epoche = 500
+                        validation_split=0.2)
+        if strategy == "ML":
+            training = np.nan_to_num(self.patches, copy=True, nan=-1.0).reshape((-1,self.patches.shape[3]))
+            model = get_ml_model(n_estimators = 250)                                                     #n_estimators = 250
+            model.fit(training, self.agb_patches.reshape((-1))) 
+            joblib.dump(model, 'models/{}/models_ml/{}-fold{}.joblib'.format(area, model_str, 0))
             
-         
+        
 def get_haralick(sentinel, band, padding, kernel, namefile, area, ispca):
     #padding 2 con kernel 5
     padded = np.expand_dims(np.expand_dims(np.pad(sentinel[0,:,:,band], ((padding,padding),(padding,padding)), mode='constant'), axis = 0), axis = -1)
@@ -327,9 +356,6 @@ def extract_patches_non_overlap(X, patch_size):
               list_X.append(X[:, row_idx[0]:row_idx[1], col_idx[0]:col_idx[1]])
 
     return list_X
-
-
-
 
 
 
